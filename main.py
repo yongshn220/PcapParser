@@ -14,6 +14,8 @@ def main():
                 ip = eth.data
                 if isinstance(ip.data, dpkt.tcp.TCP):
                     tcp = ip.data
+                    if tcp.sport in flow:
+                        flow[tcp.sport]["TP"] += len(tcp.data)
                     if tcp.flags == dpkt.tcp.TH_SYN:
                         flow[tcp.sport] = getFlowStruct(tcp)
                         flow[tcp.sport]["ISQ"] = tcp.seq
@@ -30,7 +32,7 @@ def main():
                         continue
                     if tcp.flags & dpkt.tcp.TH_ACK:
                         if tcp.sport not in flow: continue
-                        if flow[tcp.sport]["num_of_packets"] >= 5: continue
+                        if flow[tcp.sport]["num_of_packets"] >= 2: continue
                         flow[tcp.sport]["packets"].append(getPacketDataString(ip, "ACK", flow[tcp.sport]))
                         flow[tcp.sport]["num_of_packets"] += 1
                         continue
@@ -40,11 +42,12 @@ def main():
         print(f'-------- FLOW {i}---------')
         for packet in flow[port]["packets"]:
             print(packet)
+        print()
         i += 1
 
 
 def getFlowStruct(tcp):
-    return {"packets": [], "num_of_packets": 0, "ISQ": 0, "IACK": 0, "WS": 1}
+    return {"packets": [], "num_of_packets": 0, "ISQ": 0, "IACK": 0, "WS": 1, "TP":0}
 
 
 def setWinScale(tcp, flowItem):
@@ -63,6 +66,7 @@ def getPacketDataString(ip, type, flowItem):
     dip = socket.inet_ntoa(ip.dst)
     dport = tcp.dport
     return f'[{type}] -- source ip : {sip} | source port: {sport} | dest ip : {dip} | dest port : {dport}' \
-           f' | SEQ: {tcp.seq - flowItem["ISQ"]}, ACK: {tcp.ack - flowItem["IACK"]}, windowSize: {tcp.win * flowItem["WS"]}'
+           f' | SEQ: {tcp.seq - flowItem["ISQ"]}, ACK: {tcp.ack - flowItem["IACK"]}, windowSize: {tcp.win * flowItem["WS"]}' \
+           + (f' \n| Throughput: {flowItem["TP"]}' if (type == "FIN") else '')
 
 main()
